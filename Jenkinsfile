@@ -4,7 +4,7 @@ pipeline {
     environment {
         DOCKER_IMAGE = 'vaibhav126/my-app'
         AWS_REGION = 'us-east-1'
-        EKS_CLUSTER_NAME = 'ecommerce-cluster'
+        CLUSTER_NAME = 'ecommerce-cluster'
     }
 
     stages {
@@ -34,12 +34,9 @@ pipeline {
 
         stage('Update Kubeconfig for EKS') {
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-jenkins-creds'
-                ]]) {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-jenkins-creds']]) {
                     sh '''
-                        aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
+                        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME --kubeconfig /var/lib/jenkins/.kube/config
                     '''
                 }
             }
@@ -47,8 +44,13 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh 'kubectl apply -f deployment.yaml --validate=false'
-                sh 'kubectl apply -f service.yaml --validate=false'
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-jenkins-creds']]) {
+                    sh '''
+                        export KUBECONFIG=/var/lib/jenkins/.kube/config
+                        kubectl apply -f deployment.yaml --validate=false
+                        kubectl apply -f service.yaml --validate=false
+                    '''
+                }
             }
         }
     }
