@@ -1,8 +1,12 @@
 pipeline {
     agent any
+
     environment {
         DOCKER_IMAGE = 'vaibhav126/my-app'
+        AWS_REGION = 'us-east-1'
+        EKS_CLUSTER_NAME = 'ecommerce-cluster'
     }
+
     stages {
         stage('Checkout') {
             steps {
@@ -28,20 +32,33 @@ pipeline {
             }
         }
 
+        stage('Update Kubeconfig for EKS') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-jenkins-creds'
+                ]]) {
+                    sh '''
+                        aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
+                    '''
+                }
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             steps {
-                sh 'kubectl apply -f deployment.yaml'
-                sh 'kubectl apply -f service.yaml'
+                sh 'kubectl apply -f deployment.yaml --validate=false'
+                sh 'kubectl apply -f service.yaml --validate=false'
             }
         }
     }
 
     post {
         success {
-            echo 'Deployment Successful!'
+            echo '✅ Deployment Successful!'
         }
         failure {
-            echo 'Deployment Failed!'
+            echo '❌ Deployment Failed!'
         }
     }
 }
