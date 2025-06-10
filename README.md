@@ -113,24 +113,27 @@ Automate your build → push → deploy process using declarative Jenkins Pipeli
 
 ```groovy
 pipeline {
-    agent any // Jenkins will run this on any available agent node
+    agent any  // Run this pipeline on any available Jenkins agent (node)
 
     environment {
-        DOCKER_IMAGE = 'your-dockerhub-username/my-app' // 👈 Sets Docker image name for reuse
+        DOCKER_IMAGE = 'vaibhav126/my-app'     // Docker image name to build and push
+        AWS_REGION = 'us-east-1'               // AWS region where EKS cluster is hosted
+        CLUSTER_NAME = 'ecommerce-cluster'     // Name of your EKS cluster
     }
 
     stages {
-
         stage('Checkout') {
             steps {
-                checkout scm // ✅ Pulls source code from GitHub or configured SCM
+                // Pull the source code from the configured Git repository (SCM)
+                checkout scm
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build(DOCKER_IMAGE) // ✅ Builds Docker image using Dockerfile in the repo
+                    // Build the Docker image using the Dockerfile in the repo
+                    docker.build(DOCKER_IMAGE)
                 }
             }
         }
@@ -138,31 +141,56 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 script {
+                    // Authenticate with Docker Hub using stored Jenkins credentials (ID: docker-hub-creds)
                     docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-creds') {
-                        docker.image(DOCKER_IMAGE).push('latest') // ✅ Pushes image to DockerHub with "latest" tag
+                        // Push the built image with the 'latest' tag to Docker Hub
+                        docker.image(DOCKER_IMAGE).push('latest')
                     }
+                }
+            }
+        }
+
+        stage('Update Kubeconfig for EKS') {
+            steps {
+                // Use AWS credentials stored in Jenkins (ID: aws-jenkins-creds)
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-jenkins-creds']]) {
+                    sh '''
+                        # Update the kubeconfig file with EKS cluster details
+                        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME --kubeconfig /var/lib/jenkins/.kube/config
+                    '''
                 }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                // ✅ Applies Kubernetes manifests to deploy your app to EKS cluster
-                sh 'kubectl apply -f deployment.yaml'
-                sh 'kubectl apply -f service.yaml'
+                // Use the same AWS credentials to access the Kubernetes cluster
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-jenkins-creds']]) {
+                    sh '''
+                        # Set KUBECONFIG environment variable so kubectl can access the EKS cluster
+                        export KUBECONFIG=/var/lib/jenkins/.kube/config
+
+                        # Deploy the application using Kubernetes manifests
+                        kubectl apply -f deployment.yaml --validate=false
+                        kubectl apply -f service.yaml --validate=false
+                    '''
+                }
             }
         }
     }
 
     post {
         success {
-            echo '✅ Deployment Successful!' // ✅ Printed on successful pipeline run
+            // This block runs after a successful pipeline run
+            echo '✅ Deployment Successful!'
         }
         failure {
-            echo '❌ Deployment Failed!' // ❌ Printed on failure (e.g., image build or k8s apply fails)
+            // This block runs if any stage in the pipeline fails
+            echo '❌ Deployment Failed!'
         }
     }
 }
+
 ```
 
 ### 📘 Jenkins Pipeline Syntax Explanation:
