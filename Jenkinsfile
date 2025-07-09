@@ -44,7 +44,7 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-jenkins-creds']]) {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'AWS-cred']]) {
                     sh '''
                         export KUBECONFIG=/var/lib/jenkins/.kube/config
                         kubectl apply -f deployment.yaml --validate=false
