@@ -34,7 +34,7 @@ pipeline {
 
         stage('Update Kubeconfig for EKS') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-jenkins-creds']]) {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'AWS-cred']]) {
                     sh '''
                         aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME --kubeconfig /var/lib/jenkins/.kube/config
                     '''
